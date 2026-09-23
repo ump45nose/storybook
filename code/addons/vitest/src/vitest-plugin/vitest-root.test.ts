@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { validateConfigurationFiles } from 'storybook/internal/common';
@@ -94,5 +95,28 @@ describe('story test patterns', () => {
 
     expect(config.root).toBe(PACKAGE_ROOT);
     expect(config.test.include).toEqual(['stories/**/*.stories.tsx']);
+  });
+});
+
+describe('internal setup files', () => {
+  it('registers the internal setup files ahead of the user setup files of the project', async () => {
+    const plugins = await storybookTest({ configDir: CONFIG_DIR });
+    const plugin = plugins.find((p) => p.name === 'vite-plugin-storybook-test')!;
+    const project = {
+      config: { browser: { enabled: true }, setupFiles: ['/repo/my-own-setup.ts'] },
+    };
+
+    await (plugin.configureVitest as (context: unknown) => Promise<void>)({
+      vitest: { config: { coverage: { exclude: [] }, reporters: [] } },
+      project,
+    });
+
+    const resolve = (specifier: string) => fileURLToPath(import.meta.resolve(specifier));
+    expect(project.config.setupFiles).toEqual([
+      resolve('@storybook/addon-vitest/internal/setup-file'),
+      resolve('@storybook/addon-vitest/internal/setup-file-with-project-annotations'),
+      resolve('@storybook/addon-vitest/internal/setup-file.browser.4'),
+      '/repo/my-own-setup.ts',
+    ]);
   });
 });
